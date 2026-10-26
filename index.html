@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayScale HTTPE — TRANSACTION TITAN: The Scale Architect</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation / Status Header -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+          <h1>TRANSACTION TITAN</h1>
+          <span class="subtitle">THE SCALE ARCHITECT &bull; PAYSCALE FINANCIAL TECHNOLOGIES</span>
+        </div>
+      </div>
+      <div class="system-status-badges">
+        <div class="status-pill healthy" id="pill-engine">
+          <span class="indicator-dot"></span>
+          <span>ENGINE: <strong>12,000 TPS READY</strong></span>
+        </div>
+        <div class="status-pill healthy" id="pill-rpo">
+          <span class="indicator-dot"></span>
+          <span>RPO: <strong>0 (ZERO DATA LOSS)</strong></span>
+        </div>
+        <div class="status-pill healthy" id="pill-rto">
+          <span class="indicator-dot"></span>
+          <span>RTO: <strong>&le; 30s FAILOVER</strong></span>
+        </div>
+        <div class="status-pill budget" id="pill-cost">
+          <span>BUDGET: <strong>$40,850 / $45,000</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Metrics & Live Meters -->
+      <section class="metrics-panel card">
+        <div class="panel-header">
+          <h2>Live Telemetry & Performance Targets</h2>
+          <span class="live-tag">LIVE FEED</span>
+        </div>
+
+        <div class="meters-container">
+          <div class="meter-box">
+            <div class="meter-label">CURRENT THROUGHPUT</div>
+            <div class="meter-value" id="val-tps">12,450 <span class="unit">TPS</span></div>
+            <div class="meter-bar-track">
+              <div class="meter-bar-fill" id="bar-tps" style="width: 69%;"></div>
+            </div>
+            <div class="meter-subtext">Sustained Target: 12,000 | Peak Burst: 18,000</div>
+          </div>
+
+          <div class="meter-box">
+            <div class="meter-label">END-TO-END LATENCY (p99)</div>
+            <div class="meter-value" id="val-latency">42.8 <span class="unit">ms</span></div>
+            <div class="meter-bar-track">
+              <div class="meter-bar-fill latency" id="bar-latency" style="width: 42%;"></div>
+            </div>
+            <div class="meter-subtext">SLA Target: &le; 100 ms | p50: 18.2 ms | p99.9: 112 ms</div>
+          </div>
+
+          <div class="meter-box">
+            <div class="meter-label">ACTIVE WEBSOCKET SESSIONS</div>
+            <div class="meter-value" id="val-ws">50,000 <span class="unit">CONNS</span></div>
+            <div class="meter-bar-track">
+              <div class="meter-bar-fill ws" id="bar-ws" style="width: 100%;"></div>
+            </div>
+            <div class="meter-subtext">Target: 50,000 Concurrent Connections (Netty/Uvicorn)</div>
+          </div>
+
+          <div class="meter-box">
+            <div class="meter-label">DOUBLE-ENTRY RECONCILIATION</div>
+            <div class="meter-value balanced" id="val-recon">&Delta; 0.0000 <span class="unit">INR</span></div>
+            <div class="meter-bar-track">
+              <div class="meter-bar-fill recon" style="width: 100%;"></div>
+            </div>
+            <div class="meter-subtext">&sum; Debits == &sum; Credits (100% Invariant Verified)</div>
+          </div>
+        </div>
+
+        <!-- 8 Bottleneck Mitigations Matrix -->
+        <div class="bottlenecks-section">
+          <h3>Pre-Diwali Architecture Bottlenecks Resolved</h3>
+          <div class="bottleneck-badges">
+            <span class="bn-pill success" title="PgBouncer pooled to 50 conns per shard">BN-001 DB Pool (PgBouncer)</span>
+            <span class="bn-pill success" title="32 Kafka partitions, 32 consumer replicas">BN-002 Lag (&lt;500ms)</span>
+            <span class="bn-pill success" title="FastAPI AsyncIO Non-blocking Event Loop">BN-003 Async Threads</span>
+            <span class="bn-pill success" title="Redis LRU 32GB 85% Hit Ratio">BN-004 Cache Eviction</span>
+            <span class="bn-pill success" title="Distributed Token Bucket with Tier Multipliers">BN-005 Rate Limiting</span>
+            <span class="bn-pill success" title="Optimistic Concurrency Control with Version Vector">BN-006 OCC (No Deadlocks)</span>
+            <span class="bn-pill success" title="AZ-affinity routing within AWS ap-south-1">BN-007 AZ Latency</span>
+            <span class="bn-pill success" title="Vector sidecar buffering logs asynchronously">BN-008 Logging Lag</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Center Column: Interactive Control & Fault Injection -->
+      <section class="controls-panel card">
+        <div class="panel-header">
+          <h2>Chaos Engineering & Fault Injection</h2>
+          <span class="interactive-tag">INTERACTIVE</span>
+        </div>
+
+        <p class="section-desc">
+          Trigger simulated distributed failures to observe automated circuit breaking, OCC backoff retries, and Saga compensating reversals.
+        </p>
+
+        <div class="chaos-buttons-grid">
+          <button class="chaos-btn" id="btn-chaos-db" onclick="triggerChaos('db')">
+            <span class="btn-icon">💥</span>
+            <span class="btn-title">Simulate Shard 1 Outage</span>
+            <span class="btn-desc">Tests 30s Patroni failover & RPO=0</span>
+          </button>
+
+          <button class="chaos-btn" id="btn-chaos-concur" onclick="triggerChaos('concurrency')">
+            <span class="btn-icon">⚡</span>
+            <span class="btn-title">Burst Concurrency Storm</span>
+            <span class="btn-desc">100 concurrent withdrawals on 1 account</span>
+          </button>
+
+          <button class="chaos-btn" id="btn-chaos-fraud" onclick="triggerChaos('fraud')">
+            <span class="btn-icon">🛡️</span>
+            <span class="btn-title">Trigger Fraud Velocity Spike</span>
+            <span class="btn-desc">Exceeds 10 tx/min & triggers circuit breaker</span>
+          </button>
+
+          <button class="chaos-btn" id="btn-chaos-settle" onclick="triggerChaos('settlement')">
+            <span class="btn-icon">📦</span>
+            <span class="btn-title">Dispatch 100k Batch Settlement</span>
+            <span class="btn-desc">Lexicographical lock sorting validation</span>
+          </button>
+        </div>
+
+        <!-- Live Event Log -->
+        <div class="event-stream">
+          <div class="stream-header">
+            <h3>Live Distributed Event Stream</h3>
+            <button class="clear-btn" onclick="clearEventLogs()">Clear</button>
+          </div>
+          <div class="log-console" id="log-console">
+            <div class="log-line info">[15:30:00.104] [SYSTEM_INIT] PayScale HTTPE initialized with 4 PostgreSQL Shards.</div>
+            <div class="log-line success">[15:30:00.220] [OCC_ENGINE] Optimistic Concurrency CAS engine ready with exponential jitter backoff.</div>
+            <div class="log-line success">[15:30:00.350] [KAFKA_TOPOLOGY] 32 partitions active on 'payment-events' across 3 KRaft brokers.</div>
+            <div class="log-line info">[15:30:01.002] [RECON_AUDIT] Double-entry ledger audit passed. Discrepancy: 0.0000 INR.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Live Payment Submission & Architecture Stats -->
+      <section class="payment-tester-panel card">
+        <div class="panel-header">
+          <h2>Live Payment Submission Engine</h2>
+          <span class="api-tag">REST API v1</span>
+        </div>
+
+        <form id="payment-form" onsubmit="handlePaymentSubmit(event)">
+          <div class="form-group">
+            <label for="inp-source">Source Account ID</label>
+            <input type="text" id="inp-source" value="ACC-ALICE-1001" required>
+          </div>
+          <div class="form-group">
+            <label for="inp-dest">Destination Account ID</label>
+            <input type="text" id="inp-dest" value="ACC-BOB-2002" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="inp-amount">Amount (INR)</label>
+              <input type="number" id="inp-amount" value="500.00" step="0.01" min="1.00" required>
+            </div>
+            <div class="form-group half">
+              <label for="inp-key">Idempotency Key</label>
+              <input type="text" id="inp-key" value="titan-tx-sample-01" required>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="submit-btn" id="btn-submit-payment">
+              <span>Execute P2P Transfer</span>
+              <span class="btn-arrow">&rarr;</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="tx-result-box" id="tx-result-box">
+          <div class="result-title">Latest Execution Receipt</div>
+          <div class="result-content" id="tx-result-content">Awaiting payment submission...</div>
+        </div>
+
+        <!-- Infrastructure Cost Sizing Scribe -->
+        <div class="cost-summary-box">
+          <div class="cost-header">
+            <h4>AWS ap-south-1 Production Sizing</h4>
+            <span class="cost-tag">&le; $45,000 Target</span>
+          </div>
+          <div class="cost-breakdown">
+            <div class="cost-item">
+              <span>4x Aurora PostgreSQL (db.r6g.8xlarge)</span>
+              <strong>$18,400/mo</strong>
+            </div>
+            <div class="cost-item">
+              <span>3x ElastiCache Redis Cluster (cache.r6g.2xlarge)</span>
+              <strong>$4,250/mo</strong>
+            </div>
+            <div class="cost-item">
+              <span>Managed MSK Kafka 3 Brokers (kafka.m5.4xlarge)</span>
+              <strong>$7,600/mo</strong>
+            </div>
+            <div class="cost-item">
+              <span>EKS Compute 24 Nodes (c6g.2xlarge)</span>
+              <strong>$8,800/mo</strong>
+            </div>
+            <div class="cost-item">
+              <span>ALB, NAT Gateways & Network Egress</span>
+              <strong>$1,800/mo</strong>
+            </div>
+            <div class="cost-total">
+              <span>Total Estimated Cost:</span>
+              <span class="total-amount">$40,850 / month</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>PayScale Financial Technologies &bull; High-Throughput Transaction Processing Engine (HTTPE)</span>
+      <span>Engine Version: 1.0.0 &bull; Built with FastAPI, PostgreSQL, SQLAlchemy 2.x OCC, Redis, Kafka KRaft</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
