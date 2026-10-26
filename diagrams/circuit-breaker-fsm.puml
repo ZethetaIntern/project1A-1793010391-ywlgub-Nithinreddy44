@@ -1,0 +1,40 @@
+@startuml
+title PayScale HTTPE - Circuit Breaker Finite State Machine (CB-FRAUD, CB-NOTIFY, CB-DB)
+
+skinparam state {
+    BackgroundColor White
+    BorderColor #2C3E50
+    ArrowColor #2980B9
+}
+
+[*] --> CLOSED : System Boot / Health Check OK
+
+state CLOSED {
+    CLOSED : - Normal Operation
+    CLOSED : - All requests pass through
+    CLOSED : - Failure counter monitored in sliding window
+    CLOSED : - Metrics: circuit_breaker_state = 0
+}
+
+CLOSED --> OPEN : Failure rate >= Threshold\n(e.g., CB-FRAUD: 3 failures / 10s)\n(e.g., CB-NOTIFY: 5 failures / 30s)
+
+state OPEN {
+    OPEN : - Fast-Fail / Fallback Execution
+    OPEN : - Downstream service protected
+    OPEN : - Sleep Window Active (Reset Timeout)
+    OPEN : - Metrics: circuit_breaker_state = 1
+}
+
+OPEN --> HALF_OPEN : Sleep Window Expired\n(e.g., 15s for CB-FRAUD, 60s for CB-NOTIFY)
+
+state HALF_OPEN {
+    HALF_OPEN : - Probe Trial Phase
+    HALF_OPEN : - Limited canary requests permitted (e.g. 5 trial calls)
+    HALF_OPEN : - Failures immediately re-trip to OPEN
+    HALF_OPEN : - Metrics: circuit_breaker_state = 2
+}
+
+HALF_OPEN --> OPEN : Any Probe Request Fails
+HALF_OPEN --> CLOSED : All Probe Requests Succeed (Consecutive Successes >= 5)
+
+@enduml

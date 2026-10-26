@@ -1,0 +1,594 @@
+openapi: 3.0.3
+info:
+  title: PayScale High-Throughput Transaction Processing Engine (HTTPE) API
+  description: |
+    Production-grade Core Banking and Payment API for PayScale Financial Technologies.
+    Engineered for 12,000+ sustained TPS, sub-100ms p99 latency, and strict double-entry ledger correctness.
+    Complies with RBI Digital Payment Security Directives.
+  version: 1.0.0
+  contact:
+    name: PayScale Engineering & Reliability Architecture
+    email: architecture@payscale-fintech.internal
+
+servers:
+  - url: https://api.payscale-fintech.com/v1
+    description: Production Multi-AZ Gateway (AWS ap-south-1)
+  - url: http://localhost:8080/api/v1
+    description: Local Development & Load-Testing Gateway
+
+paths:
+  /accounts:
+    post:
+      summary: Create New Customer or Merchant Account
+      operationId: createAccount
+      tags:
+        - Accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /accounts/{accountId}:
+    get:
+      summary: Retrieve Account Details & Balances
+      operationId: getAccount
+      tags:
+        - Accounts
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "018d9620-1a1a-7000-8000-000000000001"
+      responses:
+        '200':
+          description: Account details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /payments/p2p:
+    post:
+      summary: Submit Person-to-Person (P2P) Payment
+      operationId: submitP2PPayment
+      tags:
+        - Payments
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Client-generated UUIDv7 deduplication token with a 24-hour retention window.
+          schema:
+            type: string
+            maxLength: 128
+            example: "018d9620-beef-7000-8000-000000009941"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/P2PPaymentRequest'
+      responses:
+        '200':
+          description: Payment completed successfully (or cached idempotent result)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '403':
+          description: Transaction blocked by Fraud Detection Service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency Conflict (Payload mismatch or concurrent transaction in-progress)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Insufficient Available Balance or Account Frozen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /payments/merchant:
+    post:
+      summary: Submit Merchant Checkout Payment
+      operationId: submitMerchantPayment
+      tags:
+        - Payments
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantPaymentRequest'
+      responses:
+        '200':
+          description: Merchant payment successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/UnprocessableError'
+
+  /transactions/{transactionId}:
+    get:
+      summary: Get Transaction Status & Audit Trail
+      operationId: getTransactionStatus
+      tags:
+        - Transactions
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /accounts/{accountId}/transactions:
+    get:
+      summary: Query Account Transaction History (Cursor-Based Pagination)
+      operationId: getAccountTransactions
+      tags:
+        - Transactions
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          required: false
+          description: Base64 opaque cursor containing `(created_at, transaction_id)`
+          schema:
+            type: string
+            example: "eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0yNlQwODozMDowMFoiLCJpZCI6IjAxOGQ5NjIwLTFhMWEtNzAwMC04MDAwLTAwMDAwMDAwMDAwMSJ9"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated transaction statements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTransactionsResponse'
+
+  /transactions/{transactionId}/reversals:
+    post:
+      summary: Request Compensating Reversal for Transaction
+      operationId: requestReversal
+      tags:
+        - Transactions
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: "MERCHANDISE_RETURNED"
+      responses:
+        '200':
+          description: Compensating reversal executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+
+  /settlements/batch:
+    post:
+      summary: Trigger Merchant Batch Settlement Execution
+      operationId: processBatchSettlement
+      tags:
+        - Settlements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - batch_id
+              properties:
+                batch_id:
+                  type: string
+                  example: "BATCH-20261026-DIWALI-01"
+                max_transactions:
+                  type: integer
+                  default: 100000
+      responses:
+        '200':
+          description: Settlement batch completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementBatchResponse'
+
+  /webhooks/events:
+    post:
+      summary: Receive and Validate Webhook Delivery
+      operationId: receiveWebhook
+      tags:
+        - Webhooks
+      parameters:
+        - name: X-PayScale-Signature
+          in: header
+          required: true
+          description: HMAC-SHA256 signature computed over request body using shared webhook secret.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - event_type
+                - event_id
+                - timestamp
+                - data
+              properties:
+                event_type:
+                  type: string
+                  example: "PAYMENT_COMPLETED"
+                event_id:
+                  type: string
+                  format: uuid
+                timestamp:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+      responses:
+        '200':
+          description: Webhook received and validated
+        '401':
+          description: Invalid HMAC signature
+
+  /health:
+    get:
+      summary: Service Liveness & Readiness Health Probes
+      operationId: checkHealth
+      tags:
+        - Observability
+      responses:
+        '200':
+          description: Service is healthy and ready to serve traffic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  shards:
+                    type: object
+                    example: {"shard_0": "UP", "shard_1": "UP", "shard_2": "UP", "shard_3": "UP"}
+                  kafka:
+                    type: string
+                    example: "UP"
+                  redis:
+                    type: string
+                    example: "UP"
+
+components:
+  schemas:
+    CreateAccountRequest:
+      type: object
+      required:
+        - user_id
+        - account_type
+        - currency
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        account_type:
+          type: string
+          enum: [SAVINGS, CURRENT, WALLET, MERCHANT]
+        currency:
+          type: string
+          default: "INR"
+        tier:
+          type: string
+          enum: [BASIC, PREMIUM, MERCHANT]
+          default: "BASIC"
+
+    AccountResponse:
+      type: object
+      properties:
+        account_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        account_type:
+          type: string
+        currency:
+          type: string
+        available_balance:
+          type: number
+          format: double
+          example: 25000.5000
+        ledger_balance:
+          type: number
+          format: double
+          example: 25000.5000
+        version:
+          type: integer
+          example: 4
+        status:
+          type: string
+          example: "ACTIVE"
+        tier:
+          type: string
+          example: "BASIC"
+        created_at:
+          type: string
+          format: date-time
+
+    P2PPaymentRequest:
+      type: object
+      required:
+        - source_account_id
+        - destination_account_id
+        - amount
+        - currency
+      properties:
+        source_account_id:
+          type: string
+          format: uuid
+        destination_account_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+          minimum: 1.0
+          example: 1500.0000
+        currency:
+          type: string
+          default: "INR"
+        notes:
+          type: string
+          example: "Diwali Gift"
+
+    MerchantPaymentRequest:
+      type: object
+      required:
+        - customer_account_id
+        - merchant_account_id
+        - amount
+        - currency
+        - order_id
+      properties:
+        customer_account_id:
+          type: string
+          format: uuid
+        merchant_account_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 499.0000
+        currency:
+          type: string
+          default: "INR"
+        order_id:
+          type: string
+          example: "ORD-998231-FLASHSALE"
+
+    TransactionResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+        transaction_type:
+          type: string
+        source_account_id:
+          type: string
+          format: uuid
+        destination_account_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [INITIATED, PROCESSING, COMPLETED, FAILED, REVERSED]
+        saga_id:
+          type: string
+          format: uuid
+        failure_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PaginatedTransactionsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
+        next_cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    SettlementBatchResponse:
+      type: object
+      properties:
+        settlement_id:
+          type: string
+          format: uuid
+        batch_id:
+          type: string
+        transaction_count:
+          type: integer
+        gross_amount:
+          type: number
+        fee_amount:
+          type: number
+        net_amount:
+          type: number
+        status:
+          type: string
+          example: "SETTLED"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+        - timestamp
+        - correlation_id
+      properties:
+        error_code:
+          type: string
+          example: "INSUFFICIENT_FUNDS"
+        message:
+          type: string
+          example: "Available balance is insufficient for this transaction."
+        timestamp:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          example: "corr-018d9620-7f91"
+
+  responses:
+    BadRequestError:
+      description: Invalid request parameters or malformed JSON
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthorizedError:
+      description: Missing or invalid JWT Bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: Conflict detected (e.g. Idempotency Key collision or in-flight processing)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableError:
+      description: Business invariant violation (e.g. insufficient balance or frozen account)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimitError:
+      description: Rate limit exceeded for this account tier
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

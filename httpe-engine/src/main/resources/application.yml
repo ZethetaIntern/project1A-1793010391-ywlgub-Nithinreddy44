@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: payscale-httpe-engine
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${DB_SHARD_0_URL:jdbc:h2:mem:payscale_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL}
+    username: ${DB_USER:payscale_admin}
+    password: ${DB_PASSWORD:payscale_secure_password_2026}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 250
+      idle-timeout: 10000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: ${HIBERNATE_DIALECT:org.hibernate.dialect.H2Dialect}
+        format_sql: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 200ms
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        linger.ms: 5
+    consumer:
+      group-id: payscale-httpe-group
+      auto-offset-reset: earliest
+      properties:
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+payscale:
+  sharding:
+    shard-count: 4
+  rate-limiting:
+    enabled: true
+  circuit-breaker:
+    fraud-threshold: 3
+    fraud-reset-seconds: 15

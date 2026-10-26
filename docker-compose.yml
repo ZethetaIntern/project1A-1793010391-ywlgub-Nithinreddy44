@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # Distributed Database Tier: 4 PostgreSQL Shards with Citus / Sharded Schemas
+  # ===========================================================================
+  postgres-shard-0:
+    image: postgres:15-alpine
+    container_name: payscale-db-shard-0
+    environment:
+      POSTGRES_DB: payscale_shard_0
+      POSTGRES_USER: payscale_admin
+      POSTGRES_PASSWORD: payscale_secure_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./schemas/ddl:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payscale_admin -d payscale_shard_0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-shard-1:
+    image: postgres:15-alpine
+    container_name: payscale-db-shard-1
+    environment:
+      POSTGRES_DB: payscale_shard_1
+      POSTGRES_USER: payscale_admin
+      POSTGRES_PASSWORD: payscale_secure_password_2026
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./schemas/ddl:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payscale_admin -d payscale_shard_1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-shard-2:
+    image: postgres:15-alpine
+    container_name: payscale-db-shard-2
+    environment:
+      POSTGRES_DB: payscale_shard_2
+      POSTGRES_USER: payscale_admin
+      POSTGRES_PASSWORD: payscale_secure_password_2026
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./schemas/ddl:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payscale_admin -d payscale_shard_2"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-shard-3:
+    image: postgres:15-alpine
+    container_name: payscale-db-shard-3
+    environment:
+      POSTGRES_DB: payscale_shard_3
+      POSTGRES_USER: payscale_admin
+      POSTGRES_PASSWORD: payscale_secure_password_2026
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./schemas/ddl:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payscale_admin -d payscale_shard_3"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # In-Memory Cache & State Tier: Redis
+  # ===========================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: payscale-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "2gb", "--maxmemory-policy", "volatile-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ===========================================================================
+  # Event Streaming Tier: Apache Kafka (KRaft Mode)
+  # ===========================================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: payscale-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'payscale-kraft-cluster-01'
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # Core Banking Application Engine: PayScale HTTPE (Spring Boot 3 / Java 21)
+  # ===========================================================================
+  httpe-engine:
+    build:
+      context: ./httpe-engine
+      dockerfile: Dockerfile
+    container_name: payscale-httpe-engine
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_SHARD_0_URL: jdbc:postgresql://postgres-shard-0:5432/payscale_shard_0
+      DB_SHARD_1_URL: jdbc:postgresql://postgres-shard-1:5432/payscale_shard_1
+      DB_SHARD_2_URL: jdbc:postgresql://postgres-shard-2:5432/payscale_shard_2
+      DB_SHARD_3_URL: jdbc:postgresql://postgres-shard-3:5432/payscale_shard_3
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres-shard-0:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # ===========================================================================
+  # Simulation & Operational Dashboard: TRANSACTION TITAN
+  # ===========================================================================
+  simulation-titan:
+    build:
+      context: ./simulation-titan
+      dockerfile: Dockerfile
+    container_name: payscale-simulation-titan
+    ports:
+      - "5173:80"
+    depends_on:
+      - httpe-engine
+
+  # ===========================================================================
+  # Observability & Monitoring: Prometheus & Grafana
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: payscale-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: payscale-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus

@@ -1,0 +1,89 @@
+@startuml
+title PayScale HTTPE - Person-to-Person (P2P) Payment Transaction Sequence
+
+autonumber
+actor "Sender Client" as Client
+boundary "API Gateway" as Gateway
+control "Transaction\nOrchestrator" as Orchestrator
+entity "Redis Cluster" as Redis
+control "Fraud Detection\nService" as Fraud
+database "Sender Shard (PostgreSQL)" as ShardA
+database "Receiver Shard (PostgreSQL)" as ShardB
+queue "Kafka Topic\n(transaction-events)" as Kafka
+actor "Notification Svc\n(WebSocket)" as Notify
+
+== Step 1: Ingestion, Authentication & Rate Limiting ==
+Client -> Gateway: POST /api/v1/payments/p2p\n[Idempotency-Key: UUIDv7, JWT Bearer]
+Gateway -> Redis: Check Rate Limit (Lua Token Bucket)
+Redis --> Gateway: Allow (Tokens Remaining: 48)
+Gateway -> Orchestrator: Forward Request (CorrelationId: txn-892)
+
+== Step 2: Idempotency Reservation ==
+Orchestrator -> Redis: SET idempotency:key {hash, IN_FLIGHT} NX EX 86400
+alt Idempotency Key Exists (Duplicate Request)
+    Redis --> Orchestrator: Key Exists (Return Cached Payload)
+    Orchestrator --> Gateway: HTTP 200 OK (Cached Result)
+    Gateway --> Client: HTTP 200 OK (No Duplicate Charge)
+else New Idempotency Key Reserved
+    Redis --> Orchestrator: OK (Reserved)
+end
+
+== Step 3: Real-Time Fraud Evaluation (15ms SLA) ==
+Orchestrator -> Fraud: POST /evaluate (accountId, amount, ip, device)
+Fraud -> Redis: Read User Velocity & Risk Rules
+Redis --> Fraud: Velocity = 2 txns/min (Low Risk)
+Fraud --> Orchestrator: Fraud Verdict: APPROVED (Latency: 6ms)
+
+alt Fraud Check Failed
+    Fraud --> Orchestrator: Fraud Verdict: DENIED (Risk Score > 80)
+    Orchestrator -> Redis: UPDATE idempotency:key -> FAILED
+    Orchestrator --> Gateway: HTTP 403 Forbidden (Fraud Risk Detected)
+    Gateway --> Client: HTTP 403 Forbidden
+end
+
+== Step 4: Sender Account Debit & Ledger Journal (Shard A) ==
+Orchestrator -> ShardA: BEGIN TRANSACTION
+Orchestrator -> ShardA: UPDATE accounts SET available_balance = available_balance - 1500,\nversion = version + 1 WHERE account_id = A AND version = v AND available_balance >= 1500
+alt Insufficient Balance / OCC Stale Version
+    ShardA --> Orchestrator: 0 rows updated
+    Orchestrator -> ShardA: ROLLBACK
+    Orchestrator -> Redis: UPDATE idempotency:key -> FAILED
+    Orchestrator --> Gateway: HTTP 422 Unprocessable (Insufficient Funds / Retry)
+    Gateway --> Client: HTTP 422
+end
+
+ShardA -> ShardA: INSERT INTO transactions (id, saga_id, amount, status='PROCESSING')
+ShardA -> ShardA: INSERT INTO ledger_entries (account_id=A, DEBIT, 1500.0000)
+ShardA --> Orchestrator: Sender Debit Success
+
+== Step 5: Receiver Account Credit & Ledger Journal (Shard B) ==
+Orchestrator -> ShardB: BEGIN TRANSACTION
+Orchestrator -> ShardB: UPDATE accounts SET available_balance = available_balance + 1500,\nledger_balance = ledger_balance + 1500, version = version + 1 WHERE account_id = B
+ShardB -> ShardB: INSERT INTO ledger_entries (account_id=B, CREDIT, 1500.0000)
+
+alt Receiver Credit Fails (Compensating Reversal Required)
+    ShardB --> Orchestrator: Error: Account Frozen or Network Timeout
+    Orchestrator -> ShardA: EXECUTE COMPENSATION SAGA\nUPDATE accounts SET available_balance = available_balance + 1500\nINSERT INTO ledger_entries (account_id=A, REVERSAL, 1500.0000)\nUPDATE transactions SET status = 'REVERSED'
+    ShardA --> Orchestrator: Compensation Committed (within 30s)
+    Orchestrator -> Kafka: Produce Event: TRANSACTION_REVERSED
+    Orchestrator --> Gateway: HTTP 500 / 422 Transaction Reversed
+    Gateway --> Client: Transaction Reversed (Funds Restored)
+end
+
+ShardB -> ShardB: COMMIT
+ShardB --> Orchestrator: Receiver Credit Success
+
+== Step 6: Finalize Sender Ledger & Transaction Outbox ==
+Orchestrator -> ShardA: UPDATE accounts SET ledger_balance = ledger_balance - 1500\nUPDATE transactions SET status = 'COMPLETED', completed_at = NOW()\nINSERT INTO outbox_events (event_type='PAYMENT_COMPLETED')
+Orchestrator -> ShardA: COMMIT
+Orchestrator -> Redis: UPDATE idempotency:key -> COMPLETED (Payload Cache)
+
+== Step 7: Fast Response to Client ==
+Orchestrator --> Gateway: HTTP 200 OK (Transaction Receipt)
+Gateway --> Client: HTTP 200 OK [Latency: 38ms]
+
+== Step 8: Asynchronous Outbox Streaming & Notifications ==
+ShardA -> Kafka: Debezium CDC publishes outbox event to `transaction-events`
+Kafka -> Notify: Consume PAYMENT_COMPLETED
+Notify -> Client: WebSocket Push: "₹1,500 transferred to Account B"
+@enduml

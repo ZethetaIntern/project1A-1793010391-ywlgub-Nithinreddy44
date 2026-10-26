@@ -1,0 +1,81 @@
+<mxfile host="Electron" modified="2026-10-26T08:30:00.000Z" agent="Mozilla/5.0" etag="payscale-httpe" version="21.6.8" type="device">
+  <diagram id="payscale-arch-13" name="PayScale HTTPE Architecture">
+    <mxGraphModel dx="1422" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Tier Backgrounds -->
+        <mxCell id="tier-client" value="Client Layer (Mobile Apps, Webhooks, POS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8F9FA;strokeColor=#BDC3C7;verticalAlign=top;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1520" height="90" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="tier-edge" value="Ingress &amp; Routing Layer (Component 1: API Gateway &amp; Component 2: Load Balancer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EBF5FB;strokeColor=#85C1E9;verticalAlign=top;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="1520" height="130" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="tier-app" value="Core Processing &amp; Orchestration Layer (Components 3, 4, 5, 7, 8, 9)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F8F5;strokeColor=#A3E4D7;verticalAlign=top;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="1520" height="260" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="tier-event" value="Event Streaming &amp; Caching Layer (Component 10: Apache Kafka &amp; Component 12: Redis Cluster)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9E7;strokeColor=#F9E79F;verticalAlign=top;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="610" width="1520" height="180" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="tier-data" value="Data Layer &amp; Observability (Component 11: Distributed PostgreSQL Shards &amp; Component 13: Observability Stack)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4ECF7;strokeColor=#D2B4DE;verticalAlign=top;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="820" width="1520" height="230" as="geometry"/>
+        </mxCell>
+
+        <!-- Components -->
+        <!-- Ingress -->
+        <mxCell id="c2-lb" value="2. Load Balancer (AWS NLB/ALB)&#xa;L7 Health Checks, AZ-Affinity, SSL Offload" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3498DB;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="200" width="380" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1-gw" value="1. API Gateway Layer (Envoy / Spring Cloud Gateway)&#xa;Token Bucket Rate Limiter, JWT Auth, Idempotency Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2980B9;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="200" width="460" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- App Services -->
+        <mxCell id="c3-orch" value="3. Transaction Orchestrator&#xa;Distributed Saga State Machine, Compensations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1ABC9C;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="370" width="280" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4-payment" value="4. Payment Processing Service&#xa;Double-Entry Ledger, Outbox Pattern, Deduplication" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A085;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="370" width="280" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5-account" value="5. Account Service&#xa;OCC Versioning (CAS), Balance Mgmt, Tier Limits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27AE60;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="370" width="280" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="c7-fraud" value="7. Fraud Detection Service&#xa;15ms SLA, Velocity Checks, Redis Feature Store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E67E22;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="370" width="240" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="c6-notify" value="6. Notification Service&#xa;50K Concurrent WebSockets, Webhooks, Push" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D35400;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="370" width="220" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c8-recon" value="8. Reconciliation Service&#xa;Double-Entry Verification, Zero-Sum Balance Audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2C3E50;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="480" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="c9-audit" value="9. Audit &amp; Compliance Service&#xa;Immutable Append-Only Log, PII Masking, RBI Ready" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#34495E;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="480" width="280" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Messaging & Cache -->
+        <mxCell id="c10-kafka" value="10. Message Queue / Event Bus (Apache Kafka 3.6 - KRaft)&#xa;3 Brokers | 32 Partitions on transaction-events | Key: account_id | Outbox EOS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F39C12;fontColor=#FFFFFF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="80" y="660" width="760" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="c12-redis" value="12. Cache Layer (Redis Cluster 7.2)&#xa;6 Nodes (96 GB) | 24-hr Idempotency Keys | Token Bucket Counters | Distributed Fencing Locks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0392B;fontColor=#FFFFFF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="880" y="660" width="650" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Database & Observability -->
+        <mxCell id="c11-db" value="11. Database Layer (PostgreSQL 15 Sharded Cluster with PgBouncer)&#xa;Shard 0 (Settlement Pool) | Shard 1 (Accounts A-G) | Shard 2 (Accounts H-N) | Shard 3 (Accounts O-Z)&#xa;Synchronous Standbys (Patroni RTO &lt; 30s) + Read Replicas | Declarative Monthly Partitioning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8E44AD;fontColor=#FFFFFF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="80" y="870" width="860" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="c13-obs" value="13. Observability &amp; Telemetry Stack&#xa;Prometheus (Metrics Scrape) | Grafana (5 Golden Dashboards)&#xa;OpenTelemetry (Distributed Tracing) | Loki Centralized Logging" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7D3C98;fontColor=#FFFFFF;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="980" y="870" width="550" height="120" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

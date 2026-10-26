@@ -1,0 +1,130 @@
+{
+  "info": {
+    "name": "PayScale HTTPE API Collection",
+    "description": "Integration test collection for PayScale High-Throughput Transaction Processing Engine",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "018d9620-beef-7000-8000-000000009941"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Create Account (Sender)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"018d9620-aaaa-7000-8000-000000000001\",\n  \"account_type\": \"SAVINGS\",\n  \"currency\": \"INR\",\n  \"tier\": \"BASIC\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/accounts",
+          "host": ["{{baseUrl}}"],
+          "path": ["accounts"]
+        }
+      }
+    },
+    {
+      "name": "Get Account Details",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/accounts/018d9620-1a1a-7000-8000-000000000001",
+          "host": ["{{baseUrl}}"],
+          "path": ["accounts", "018d9620-1a1a-7000-8000-000000000001"]
+        }
+      }
+    },
+    {
+      "name": "Submit P2P Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"source_account_id\": \"018d9620-1a1a-7000-8000-000000000001\",\n  \"destination_account_id\": \"018d9620-2b2b-7000-8000-000000000002\",\n  \"amount\": 1500.0000,\n  \"currency\": \"INR\",\n  \"notes\": \"Diwali Shopping\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/payments/p2p",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments", "p2p"]
+        }
+      }
+    },
+    {
+      "name": "Submit Merchant Payment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "018d9620-mkt-7000-8000-000000000002" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_account_id\": \"018d9620-1a1a-7000-8000-000000000001\",\n  \"merchant_account_id\": \"018d9620-9999-7000-8000-000000000009\",\n  \"amount\": 499.0000,\n  \"currency\": \"INR\",\n  \"order_id\": \"ORD-FLASHSALE-101\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/payments/merchant",
+          "host": ["{{baseUrl}}"],
+          "path": ["payments", "merchant"]
+        }
+      }
+    },
+    {
+      "name": "Get Transaction History (Cursor Paging)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/accounts/018d9620-1a1a-7000-8000-000000000001/transactions?limit=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["accounts", "018d9620-1a1a-7000-8000-000000000001", "transactions"],
+          "query": [{ "key": "limit", "value": "20" }]
+        }
+      }
+    },
+    {
+      "name": "Process Batch Settlement",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"batch_id\": \"BATCH-20261026-01\",\n  \"max_transactions\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/settlements/batch",
+          "host": ["{{baseUrl}}"],
+          "path": ["settlements", "batch"]
+        }
+      }
+    }
+  ]
+}

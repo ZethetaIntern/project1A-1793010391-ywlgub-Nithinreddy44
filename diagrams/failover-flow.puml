@@ -1,0 +1,42 @@
+@startuml
+title PayScale HTTPE - System Failover Under Peak Load Sequence (RTO < 30s, RPO = 0)
+
+autonumber
+actor "Client Load (12K TPS)" as Client
+boundary "API Gateway / App Tier" as App
+control "PgBouncer\nConnection Pooler" as PgBouncer
+database "Primary DB Node\n(Shard 1 - Active)" as Primary
+control "Patroni / Raft\nDCS Watchdog" as Patroni
+database "Synchronous Standby\n(Shard 1 - Replica)" as Standby
+
+== Normal Operation at 12,000 TPS ==
+Client -> App: Submit Transactions
+App -> PgBouncer: Query & Write Pipeline
+PgBouncer -> Primary: Stream Queries via Transaction Pooling
+Primary -> Standby: Synchronous WAL Streaming Replication (Zero Lag)
+
+== Fault Event: Primary Hardware Crash (T = 0s) ==
+Primary -> Primary: !! Node Hardware Crash / Network Partition !!
+PgBouncer -> Primary: TCP Timeout / Connection Severed
+PgBouncer -> PgBouncer: Buffer incoming client connections (Pause Mode)
+
+== Failover Detection & Standby Promotion (T = 5s to 15s) ==
+Patroni -> Primary: Heartbeat Check Failed (3 consecutive intervals)
+Patroni -> Patroni: Master Lease in DCS Expired (TTL = 10s)
+Patroni -> Standby: Issue Fencing Token & STONITH to isolate Old Primary
+Patroni -> Standby: Verify Highest Committed WAL LSN Position
+Patroni -> Standby: Execute pg_promote() -> PROMOTE TO NEW PRIMARY
+Standby --> Patroni: Promotion Complete (Elapsed: 12 seconds)
+
+== Traffic Redirection via PgBouncer (T = 16s to 18s) ==
+Patroni -> PgBouncer: Update DNS / Configuration: New Primary IP
+PgBouncer -> PgBouncer: Reload target host & unpause client queues
+PgBouncer -> Standby: Establish new physical backend connections
+
+== Application Recovery & Zero Data Loss Guarantee ==
+App -> PgBouncer: Re-send buffered queries
+PgBouncer -> Standby: Execute on NEW PRIMARY
+Standby --> PgBouncer: Commit Success (Zero Committed Transactions Lost)
+PgBouncer --> App: Query Results
+App --> Client: HTTP 200 OK (RTO: 18.2 seconds total, RPO = 0)
+@enduml
